@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 namespace MeteoSharp.Measurements
 {
+    /// <summary>
+    /// Represents the Length.
+    /// </summary>
 #if NETSTANDARD2_0
     [Serializable]
 #endif

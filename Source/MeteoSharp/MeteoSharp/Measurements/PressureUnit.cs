@@ -2,9 +2,9 @@
 {
     public enum PressureUnit
     {
-        Pascal,
-        HektoPascal,
-        MillimeterOfMercury,
-        InchOfMercury
+        Pascal = 0,
+        HektoPascal = 1,
+        MillimeterOfMercury = 2,
+        InchOfMercury = 3
     }
 }
