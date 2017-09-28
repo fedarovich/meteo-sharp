@@ -178,5 +178,35 @@ namespace MeteoSharp.Tests.Measurements
             Assert.That(length.Value, Is.EqualTo(value));
             Assert.That(length.Unit, Is.EqualTo(originalUnit));
         }
+
+        [Test]
+        public void In(
+            [Values] LengthUnit unit1,
+            [Values] LengthUnit unit2,
+            [Values] LengthUnit unit3)
+        {
+            var len1 = new Length(2.5m, unit1);
+            var len2 = len1.In(unit2);
+            var len3 = len1.In(unit3);
+            var len23 = len2.In(unit3);
+
+            var err = Math.Abs(len23.Value - len3.Value) / len3.Value;
+            Assert.That(err, Is.LessThan(1e-8m));
+            Assert.That(len23.Unit, Is.EqualTo(len3.Unit));
+        }
+
+        [Test]
+        public void ValueIn(
+            [Values] LengthUnit unit1,
+            [Values] LengthUnit unit2,
+            [Values] LengthUnit unit3)
+        {
+            var len = new Length(2.5m, unit1);
+            var val3 = len.ValueIn(unit3);
+            var val23 = len.In(unit2).ValueIn(unit3);
+
+            var err = Math.Abs(val23 - val3) / val3;
+            Assert.That(err, Is.LessThan(1e-8m));
+        }
     }
 }
