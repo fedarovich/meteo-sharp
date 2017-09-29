@@ -37,11 +37,11 @@ namespace MeteoSharp.Measurements
             new ConversionTable<Pressure, PressureUnit>
             {
                 [from: PressureUnit.HektoPascal,          to: PressureUnit.Pascal] = 100m,
-                [from: PressureUnit.MillimeterOfMercury,  to: PressureUnit.Pascal] = 133.322m,
+                [from: PressureUnit.MillimeterOfMercury,  to: PressureUnit.Pascal] = 133.322368m,
                 [from: PressureUnit.InchOfMercury,        to: PressureUnit.Pascal] = 3386.38816m,
-                [from: PressureUnit.MillimeterOfMercury,  to: PressureUnit.HektoPascal] = 1.33322m,
+                [from: PressureUnit.MillimeterOfMercury,  to: PressureUnit.HektoPascal] = 1.33322368m,
                 [from: PressureUnit.InchOfMercury,        to: PressureUnit.HektoPascal] = 33.8638816m,
-                [from: PressureUnit.MillimeterOfMercury,  to: PressureUnit.InchOfMercury] = 0.0393701m,
+                [from: PressureUnit.MillimeterOfMercury,  to: PressureUnit.InchOfMercury] = 0.0393700787m,
                
             };
 
