@@ -1,25 +1,34 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace MeteoSharp.Measurements
 {
     internal class ConversionTable<TMeasurement, TUnit>
-        where TMeasurement : struct, IMeasurement<TUnit>
-        where TUnit : struct
+        where TMeasurement : unmanaged, IMeasurement<TUnit>
+        where TUnit : unmanaged, Enum
     {
-        private readonly Dictionary<(TUnit from, TUnit to), decimal> _conversions = new Dictionary<(TUnit from, TUnit to), decimal>();
+        private static readonly int Count = Enum.GetValues(typeof(TUnit)).Cast<int>().Max() + 1;
+
+        private readonly decimal[,] _conversions;
+
+        internal ConversionTable()
+        {
+            _conversions = new decimal[Count, Count];
+        }
 
         public decimal this[TUnit from, TUnit to]
         {
-            get => from.Equals(to) ? 1m : _conversions[(from, to)];
+            get => EqualityComparer<TUnit>.Default.Equals(from, to) ? 1m : _conversions[Index(from), Index(to)];
             set
             {
-                if (!from.Equals(to))
+                if (!EqualityComparer<TUnit>.Default.Equals(from, to))
                 {
-                    _conversions[(from, to)] = value;
-                    _conversions[(to, from)] = 1 / value;
+                    int f = Index(from);
+                    int t = Index(to);
+                    _conversions[f, t] = value;
+                    _conversions[t, f] = 1 / value;
                 }
             }
         }
@@ -35,5 +44,8 @@ namespace MeteoSharp.Measurements
             var factor = this[measurement.Unit, targetUnit];
             return measurement.Value * factor;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe int Index(TUnit unit) => *(int*) &unit;
     }
 }

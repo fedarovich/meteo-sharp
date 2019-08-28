@@ -6,10 +6,7 @@ namespace MeteoSharp.Measurements
     /// <summary>
     /// Represents the Length.
     /// </summary>
-#if NETSTANDARD2_0
-    [Serializable]
-#endif
-    public struct Length : IMeasurement<Length, LengthUnit>
+    public readonly struct Length : IMeasurement<Length, LengthUnit>
     {
         #region Constants
 
@@ -89,6 +86,12 @@ namespace MeteoSharp.Measurements
         public Length In(LengthUnit unit) => Conversions.Convert(this, unit);
 
         public override string ToString() => $"{Value} {Abbreviations[(int) Unit]}";
+
+        public void Deconstruct(out decimal value, out LengthUnit unit)
+        {
+            value = Value;
+            unit = Unit;
+        }
 
         #region Equality
 

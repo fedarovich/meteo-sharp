@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace MeteoSharp.Measurements
 {
     public interface IMeasurement<TUnit>
-        where TUnit : struct
+        where TUnit : struct, Enum
     {
         decimal Value { get; }
 
@@ -16,8 +14,8 @@ namespace MeteoSharp.Measurements
 
     public interface IMeasurement<TMeasurement, TUnit>
         : IMeasurement<TUnit>, IEquatable<TMeasurement>, IComparable<TMeasurement>, IComparable
-        where TMeasurement : IMeasurement<TUnit>
-        where TUnit : struct
+        where TMeasurement : struct, IMeasurement<TUnit>
+        where TUnit : struct, Enum
     {
         TMeasurement In(TUnit unit);
     }
