@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netcoreapp2.1;netstandard2.1;netcoreapp3.0</TargetFrameworks>
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" $(TargetFramework) == 'netstandard2.0' OR $(TargetFramework) == 'netcoreapp2.1' ">
+    <PackageReference Include="System.Interactive.Async" Version="4.0.0-preview.8.build.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Pipelines" Version="4.6.0-preview8.19405.3" />
+    <PackageReference Include="System.Reactive" Version="4.2.0-preview.625" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MeteoSharp\MeteoSharp.csproj" />
+  </ItemGroup>
+
+</Project>
