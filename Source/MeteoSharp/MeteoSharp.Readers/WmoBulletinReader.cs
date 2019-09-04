@@ -116,36 +116,47 @@ namespace MeteoSharp.Readers
                 {
                     var data = sequence;
                     var bulletinFinished = false;
-                    while (!data.IsEmpty)
+                    bool canContinue = true;
+                    while (canContinue)
                     {
+                        if (data.IsEmpty)
+                        {
+                            if (part == Part.None)
+                                break;
+
+                            if (part == Part.Report)
+                            {
+                                bulletinFinished = true;
+                                break;
+                            }
+
+                            throw new EndOfStreamException("Unexpected end of stream at " + data.End.GetInteger());
+                        }
+
                         switch (part)
                         {
                             case Part.None:
                                 ProcessPartNone(ref data);
                                 break;
                             case Part.FlagFieldSeparator:
-                                if (!ProcessFlagFieldSeparator(ref data))
-                                    goto END;
+                                canContinue = ProcessFlagFieldSeparator(ref data);
                                 break;
                             case Part.BulletinHeading:
-                                if (!ProcessBulletinHeading(ref data))
-                                    goto END;
+                                canContinue = ProcessBulletinHeading(ref data);
                                 break;
                             case Part.SupplementaryIdentificationLine:
-                                if (!ProcessSupplementaryIdentificationLine(ref data))
-                                    goto END;
+                                canContinue = ProcessSupplementaryIdentificationLine(ref data);
                                 break;
                             case Part.Report:
-                                if (!ProcessReport(ref data))
-                                    goto END;
+                                canContinue = ProcessReport(ref data);
                                 break;
                             case Part.End:
                                 bulletinFinished = true;
-                                goto END;
+                                canContinue = false;
+                                break;
                         }
                     }
 
-                    END:
                     return (data.Start, data.End, bulletinFinished);
 
                     void ProcessPartNone(ref ReadOnlySequence<byte> data)
