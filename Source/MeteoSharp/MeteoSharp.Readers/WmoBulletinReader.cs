@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
@@ -81,94 +83,80 @@ namespace MeteoSharp.Readers
             var builders = new Dictionary<byte[], BulletingBuilder>(new ByteArrayEqualityComparer());
             BulletingBuilder builder = null;
 
+            var part = Part.None;
+            byte marker = 0;
+            int blockLength = 0;
+            int totalLength = 0;
+            SequencePosition? bulletinStart = null;
+
             while (true)
             {
-                var part = Part.None;
-                byte marker = 0;
-                int blockLength = 0;
-                int totalLength = 0;
-                SequencePosition? bulletinStart = null;
-
                 var result = await reader.ReadAsync();
                 if (result.IsCanceled)
                     break;
 
-                var buffer = result.Buffer;
-                var (consumed, examined, bulletinFinished) = ProcessSequence(buffer);
-                reader.AdvanceTo(consumed, examined);
-                if (bulletinFinished)
+                var data = result.Buffer;
+                foreach (var bulletin in ProcessSequence())
                 {
-                    if (!builder.IsMultipart || builder.Part == BulletinPart.Last)
-                    {
-                        yield return builder.Build();
-                        builder.Reset();
-                    }
-
-                    continue;
+                    yield return bulletin;
                 }
+                reader.AdvanceTo(data.Start, data.End);
 
                 if (result.IsCompleted)
                     break;
 
-
-                (SequencePosition consumed, SequencePosition examined, bool bulletinFinished) ProcessSequence(
-                    in ReadOnlySequence<byte> sequence)
+                IEnumerable<WmoBulletin> ProcessSequence()
                 {
-                    var data = sequence;
-                    var bulletinFinished = false;
                     bool canContinue = true;
                     while (canContinue)
                     {
-                        if (data.IsEmpty)
-                        {
-                            if (part == Part.None)
-                                break;
-
-                            if (part == Part.Report)
-                            {
-                                bulletinFinished = true;
-                                break;
-                            }
-
-                            throw new EndOfStreamException("Unexpected end of stream at " + data.End.GetInteger());
-                        }
-
                         switch (part)
                         {
                             case Part.None:
-                                ProcessPartNone(ref data);
+                                canContinue = ProcessPartNone();
                                 break;
-                            case Part.FlagFieldSeparator:
-                                canContinue = ProcessFlagFieldSeparator(ref data);
+                            case Part.FlagFieldSeparator when !data.IsEmpty:
+                                canContinue = ProcessFlagFieldSeparator();
                                 break;
-                            case Part.BulletinHeading:
-                                canContinue = ProcessBulletinHeading(ref data);
-                                break;
-                            case Part.SupplementaryIdentificationLine:
-                                canContinue = ProcessSupplementaryIdentificationLine(ref data);
+                            case Part.BulletinHeading when !data.IsEmpty:
+                                canContinue = ProcessBulletinHeading();
                                 break;
                             case Part.Report:
-                                canContinue = ProcessReport(ref data);
+                                canContinue = ProcessReport();
                                 break;
                             case Part.End:
-                                bulletinFinished = true;
-                                canContinue = false;
+                                if (!builder.IsMultipart || builder.Part == BulletinPart.Last)
+                                {
+                                    yield return builder.Build();
+                                    builder.Reset();
+                                }
+
+                                part = Part.None;
+                                marker = 0;
+                                blockLength = 0;
+                                totalLength = 0;
+                                bulletinStart = null;
+
                                 break;
+                            default:
+                                throw new EndOfStreamException("Unexpected end of stream at " + data.End.GetInteger());
                         }
                     }
 
-                    return (data.Start, data.End, bulletinFinished);
-
-                    void ProcessPartNone(ref ReadOnlySequence<byte> data)
+                    bool ProcessPartNone()
                     {
+                        if (data.IsEmpty)
+                            return false;
+
                         marker = data.First.Span[0];
                         if (marker != StarMarker && marker != HashMarker)
                             throw GetInvalidFormatException(data.Start);
 
                         part = Part.FlagFieldSeparator;
+                        return true;
                     }
 
-                    bool ProcessFlagFieldSeparator(ref ReadOnlySequence<byte> data)
+                    bool ProcessFlagFieldSeparator()
                     {
                         int length = marker == StarMarker ? 19 : Math.Max(18, blockLength);
                         if (data.Length < length)
@@ -178,21 +166,21 @@ namespace MeteoSharp.Readers
                         data.Slice(0, length).CopyTo(span);
                         if (marker == StarMarker)
                         {
-                            ValidateMarkers(span, 0, StarMarkers, data);
+                            ValidateMarkers(span, 0, StarMarkers);
                             totalLength = GetNumber(span.Slice(4, 10), data.GetPosition(4));
-                            ValidateMarkers(span, 14, StarMarkers, data);
+                            ValidateMarkers(span, 14, StarMarkers);
                             if (span[18] != (byte) '\n') throw GetInvalidFormatException(data.GetPosition(18));
                         }
                         else
                         {
-                            ValidateMarkers(span, 0, HashMarkers, data);
+                            ValidateMarkers(span, 0, HashMarkers);
                             blockLength = GetNumber(span.Slice(4, 3), data.Start);
                             if (blockLength > length)
                                 return true; // We will allocate enough buffer on next loop.
 
                             bool isVariable = blockLength > 18;
                             totalLength = GetNumber(span.Slice(7, isVariable ? 11 : 6), data.GetPosition(7));
-                            ValidateMarkers(span, blockLength - 5, HashMarkers, data);
+                            ValidateMarkers(span, blockLength - 5, HashMarkers);
                             if (span[blockLength - 1] != (byte) '\n')
                                 throw GetInvalidFormatException(data.GetPosition(18));
                         }
@@ -201,15 +189,14 @@ namespace MeteoSharp.Readers
                         part = Part.BulletinHeading;
                         return true;
 
-                        static void ValidateMarkers(in ReadOnlySpan<byte> span, int offset,
-                            in ReadOnlyMemory<byte> pattern, in ReadOnlySequence<byte> data)
+                        void ValidateMarkers(in ReadOnlySpan<byte> span, int offset, in ReadOnlyMemory<byte> pattern)
                         {
                             if (!span.Slice(offset, pattern.Length).SequenceEqual(pattern.Span))
                                 throw GetInvalidFormatException(data.GetPosition(offset));
                         }
                     }
 
-                    bool ProcessBulletinHeading(ref ReadOnlySequence<byte> data)
+                    bool ProcessBulletinHeading()
                     {
                         bulletinStart = data.Start;
                         var end = data.PositionOf((byte) '\r');
@@ -219,22 +206,20 @@ namespace MeteoSharp.Readers
                         var slice = data.Slice(data.Start, end.Value);
                         if (slice.IsSingleSegment)
                         {
-                            BuildHeading(slice.First.Span, data);
+                            BuildHeading(slice.First.Span);
                         }
                         else
                         {
                             Span<byte> span = stackalloc byte[(int) slice.Length];
                             slice.CopyTo(span);
-                            BuildHeading(span, data);
+                            BuildHeading(span);
                         }
 
                         data = data.Slice(end.Value);
-                        part = HasSupplementaryIdentificationLine()
-                            ? Part.SupplementaryIdentificationLine
-                            : Part.Report;
+                        part = Part.Report;
                         return true;
 
-                        void BuildHeading(in ReadOnlySpan<byte> span, in ReadOnlySequence<byte> data)
+                        void BuildHeading(in ReadOnlySpan<byte> span)
                         {
                             if (span.Length < 18)
                                 throw GetInvalidFormatException(end.Value);
@@ -276,8 +261,7 @@ namespace MeteoSharp.Readers
                                         }
                                         else
                                         {
-                                            builder = new BulletingBuilder
-                                                {IsMultipart = true, Part = BulletinPart.First};
+                                            builder = new BulletingBuilder {IsMultipart = true, Part = BulletinPart.First};
                                             builders.Add(key, builder);
                                         }
 
@@ -309,60 +293,20 @@ namespace MeteoSharp.Readers
                             int minute = GetNumber(span.Slice(16, 2), data.GetPosition(16));
                             builder.Time = new DayHourMinute(day, hour, minute);
                         }
-
-                        bool HasSupplementaryIdentificationLine()
-                        {
-                            if (hasSupplementaryIdentificationLine != null)
-                                return hasSupplementaryIdentificationLine.Value;
-
-                            // TODO: Determine whether the product has SupplementaryIdentificationLine
-                            return true;
-                        }
                     }
 
-                    bool ProcessSupplementaryIdentificationLine(ref ReadOnlySequence<byte> data)
+                    bool ProcessReport()
                     {
-                        if (char.IsWhiteSpace((char) data.First.Span[0]))
+                        if (data.IsEmpty)
                         {
-                            data = data.Slice(1);
-                            return true;
-                        }
-
-                        var end = data.PositionOf((byte) '\n');
-                        if (end == null)
+                            if (result.IsCompleted)
+                            {
+                                part = Part.End;
+                                return true;
+                            }
                             return false;
-
-                        if (builder.Part == BulletinPart.First)
-                        {
-                            var slice = data.Slice(data.Start, end.Value);
-                            if (slice.IsSingleSegment)
-                            {
-                                builder.SupplementaryIdentificationLine =
-                                    GetSupplementaryIdentificationLine(slice.First.Span);
-                            }
-                            else
-                            {
-                                Span<byte> span = stackalloc byte[(int) slice.Length];
-                                slice.CopyTo(span);
-                                builder.SupplementaryIdentificationLine = GetSupplementaryIdentificationLine(span);
-                            }
                         }
 
-                        data = data.Slice(end.Value);
-                        part = Part.Report;
-                        return true;
-
-                        string GetSupplementaryIdentificationLine(in ReadOnlySpan<byte> span)
-                        {
-                            int silEnd = span.LastIndexOf((byte) '\r');
-                            return silEnd >= 0
-                                ? Encoding.ASCII.GetString(span.Slice(0, silEnd - 1))
-                                : Encoding.ASCII.GetString(span.Slice(0, span.Length - 1));
-                        }
-                    }
-
-                    bool ProcessReport(ref ReadOnlySequence<byte> data)
-                    {
                         if (char.IsWhiteSpace((char) data.First.Span[0]))
                         {
                             data = data.Slice(1);
@@ -375,7 +319,7 @@ namespace MeteoSharp.Readers
                             return true;
                         }
 
-                        var end = data.PositionOf((byte) '=');
+                        var (end, isBulletinEnd) = GetEndPosition();
                         if (end == null)
                             return false;
 
@@ -393,12 +337,32 @@ namespace MeteoSharp.Readers
                         }
 
                         builder.TextReports.Add(report);
-                        data = data.Slice(end.Value).Slice(1);
+                        data = data.Slice(end.Value);
+                        if (!isBulletinEnd)
+                        {
+                            data = data.Slice(1);
+                        }
                         return true;
 
                         string GetReport(in ReadOnlySpan<byte> span)
                         {
                             return Encoding.ASCII.GetString(span.Slice(0, span.Length));
+                        }
+
+                        (SequencePosition? end, bool isBulletinEnd) GetEndPosition()
+                        {
+                            var bulletinEnd = data.PositionOf((byte)'#');
+                            var reportEnd = data.PositionOf((byte)'=');
+
+                            if (bulletinEnd == null && reportEnd == null)
+                                return (null, false);
+
+                            if (bulletinEnd != null && reportEnd != null)
+                                return bulletinEnd.Value.GetInteger() < reportEnd.Value.GetInteger()
+                                    ? (bulletinEnd, true)
+                                    : (reportEnd, false);
+
+                            return bulletinEnd != null ? (bulletinEnd, true) : (reportEnd, false);
                         }
                     }
 
@@ -443,15 +407,20 @@ namespace MeteoSharp.Readers
 
             public ushort Index { get; set; }
 
-            public string SupplementaryIdentificationLine { get; set; }
+            public List<string> TextReports { get; } = new List<string>();
 
-            public List<string> TextReports { get; set; } = new List<string>();
-
-            public MemoryStream BinaryReport { get; set; }
+            public byte[] BinaryReport { get; set; }
 
             public WmoBulletinType Type { get; set; }
 
-            public WmoBulletin Build() => default;
+            public WmoBulletin Build()
+            { 
+                return new WmoBulletin(T1, T2, A1, A2, ii, Type, 
+                    Type == WmoBulletinType.Normal ? (byte)0 : (byte)(Index - 'A'),
+                    BinaryPrimitives.ReadUInt32LittleEndian(Location),
+                    Time,
+                    TextReports);
+            }
 
             public void Reset()
             {
@@ -465,9 +434,8 @@ namespace MeteoSharp.Readers
                 IsMultipart = false;
                 Part = BulletinPart.First;
                 Index = 0;
-                SupplementaryIdentificationLine = null;
                 TextReports.Clear();
-                BinaryReport?.SetLength(0);
+                BinaryReport = null;
                 Type = default;
             }
         }
@@ -477,7 +445,6 @@ namespace MeteoSharp.Readers
             None,
             FlagFieldSeparator,
             BulletinHeading,
-            SupplementaryIdentificationLine,
             Report,
             End
         }

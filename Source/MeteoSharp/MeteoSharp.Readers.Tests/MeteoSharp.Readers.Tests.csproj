@@ -8,7 +8,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Data\synop.0001.data" />
     <None Remove="Data\synop.0001.txt" />
+    <None Remove="Data\synop.0113.data" />
+    <None Remove="Data\synop.0113.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\synop.0001.data" />
+    <EmbeddedResource Include="Data\synop.0113.data" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,10 +27,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MeteoSharp.Readers\MeteoSharp.Readers.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Data\synop.0001.txt" />
   </ItemGroup>
 
 </Project>
