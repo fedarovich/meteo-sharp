@@ -33,6 +33,7 @@ namespace MeteoSharp.Readers.Tests
 
             var reader = new WmoBulletinReader();
             int count = 0;
+
             await foreach (var bulletin in reader.Read(stream))
             {
                 count += 1;

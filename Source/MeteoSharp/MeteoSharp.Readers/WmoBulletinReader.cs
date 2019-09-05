@@ -2,13 +2,9 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 using MeteoSharp.Bulletins;
 using MeteoSharp.Time;
 
@@ -86,9 +82,8 @@ namespace MeteoSharp.Readers
             var part = Part.None;
             byte marker = 0;
             int blockLength = 0;
+            int reportLength = 0;
             int totalLength = 0;
-            int? bulletinStart = null;
-            int? reportStart = null;
 
             while (true)
             {
@@ -136,7 +131,7 @@ namespace MeteoSharp.Readers
                                 marker = 0;
                                 blockLength = 0;
                                 totalLength = 0;
-                                bulletinStart = null;
+                                reportLength = 0;
 
                                 break;
                             default:
@@ -199,13 +194,12 @@ namespace MeteoSharp.Readers
 
                     bool ProcessBulletinHeading()
                     {
-                        bulletinStart = data.Start.GetInteger();
                         var lineEnd = data.PositionOf((byte) '\n');
                         if (lineEnd == null)
                             return false;
 
                         var end = data.PositionOf((byte) '\r');
-                        if (end == null || (lineEnd.Value.GetInteger() - end.Value.GetInteger()) != 2)
+                        if (end == null || !data.GetPosition(2, end.Value).Equals(lineEnd.Value))
                             throw GetInvalidFormatException(lineEnd.Value);
 
                         var slice = data.Slice(data.Start, end.Value);
@@ -220,8 +214,8 @@ namespace MeteoSharp.Readers
                             BuildHeading(span);
                         }
 
-                        reportStart = lineEnd.Value.GetInteger() + 1;
-                        data = data.Slice(lineEnd.Value);
+                        reportLength = totalLength - (int)slice.Length - 3;
+                        data = data.Slice(lineEnd.Value).Slice(1);
                         part = Part.Report;
                         return true;
 
@@ -303,7 +297,7 @@ namespace MeteoSharp.Readers
 
                     bool ProcessReport()
                     {
-                        if (data.IsEmpty)
+                        if (data.Length < reportLength)
                         {
                             if (result.IsCompleted)
                             {
@@ -313,41 +307,35 @@ namespace MeteoSharp.Readers
                             return false;
                         }
 
-                        if (char.IsWhiteSpace((char) data.First.Span[0]))
-                        {
-                            data = data.Slice(1);
-                            return true;
-                        }
-
-                        if (data.First.Span[0] == (byte) '#')
-                        {
-                            part = Part.End;
-                            return true;
-                        }
-
-                        var (end, isBulletinEnd) = GetEndPosition();
-                        if (end == null)
-                            return false;
-
                         string report;
-                        var slice = data.Slice(data.Start, end.Value);
-                        if (slice.IsSingleSegment)
+                        var reportSlice = data.Slice(data.Start, reportLength);
+                        do
                         {
-                            report = GetReport(slice.First.Span);
-                        }
-                        else
-                        {
-                            Span<byte> span = stackalloc byte[(int) slice.Length];
-                            slice.CopyTo(span);
-                            report = GetReport(span);
-                        }
+                            var (end, isBulletinEnd) = GetEndPosition();
+                            var slice = reportSlice.Slice(reportSlice.Start, end);
 
-                        builder.TextReports.Add(report);
-                        data = data.Slice(end.Value);
-                        if (!isBulletinEnd)
-                        {
-                            data = data.Slice(1);
-                        }
+                            if (slice.IsSingleSegment)
+                            {
+                                report = GetReport(slice.First.Span);
+                            }
+                            else
+                            {
+                                Span<byte> span = stackalloc byte[(int) slice.Length];
+                                slice.CopyTo(span);
+                                report = GetReport(span);
+                            }
+
+                            builder.TextReports.Add(report);
+                            if (isBulletinEnd)
+                            {
+                                break;
+                            }
+
+                            reportSlice = reportSlice.Slice(end).Slice(1);
+                        } while (!reportSlice.IsEmpty);
+
+                        data = data.Slice(reportLength);
+                        part = Part.End;
                         return true;
 
                         string GetReport(in ReadOnlySpan<byte> span)
@@ -355,20 +343,12 @@ namespace MeteoSharp.Readers
                             return Encoding.ASCII.GetString(span.Slice(0, span.Length));
                         }
 
-                        (SequencePosition? end, bool isBulletinEnd) GetEndPosition()
+                        (SequencePosition end, bool isBulletinEnd) GetEndPosition()
                         {
-                            var bulletinEnd = data.PositionOf((byte)'#');
-                            var reportEnd = data.PositionOf((byte)'=');
-
-                            if (bulletinEnd == null && reportEnd == null)
-                                return (null, false);
-
-                            if (bulletinEnd != null && reportEnd != null)
-                                return bulletinEnd.Value.GetInteger() < reportEnd.Value.GetInteger()
-                                    ? (bulletinEnd, true)
-                                    : (reportEnd, false);
-
-                            return bulletinEnd != null ? (bulletinEnd, true) : (reportEnd, false);
+                            var reportEnd = reportSlice.PositionOf((byte)'=');
+                            return reportEnd != null
+                                ? (reportEnd.Value, false)
+                                : (reportSlice.End, true);
                         }
                     }
 
