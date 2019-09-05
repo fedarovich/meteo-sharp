@@ -87,7 +87,8 @@ namespace MeteoSharp.Readers
             byte marker = 0;
             int blockLength = 0;
             int totalLength = 0;
-            SequencePosition? bulletinStart = null;
+            int? bulletinStart = null;
+            int? reportStart = null;
 
             while (true)
             {
@@ -198,10 +199,14 @@ namespace MeteoSharp.Readers
 
                     bool ProcessBulletinHeading()
                     {
-                        bulletinStart = data.Start;
-                        var end = data.PositionOf((byte) '\r');
-                        if (end == null)
+                        bulletinStart = data.Start.GetInteger();
+                        var lineEnd = data.PositionOf((byte) '\n');
+                        if (lineEnd == null)
                             return false;
+
+                        var end = data.PositionOf((byte) '\r');
+                        if (end == null || (lineEnd.Value.GetInteger() - end.Value.GetInteger()) != 2)
+                            throw GetInvalidFormatException(lineEnd.Value);
 
                         var slice = data.Slice(data.Start, end.Value);
                         if (slice.IsSingleSegment)
@@ -215,7 +220,8 @@ namespace MeteoSharp.Readers
                             BuildHeading(span);
                         }
 
-                        data = data.Slice(end.Value);
+                        reportStart = lineEnd.Value.GetInteger() + 1;
+                        data = data.Slice(lineEnd.Value);
                         part = Part.Report;
                         return true;
 
