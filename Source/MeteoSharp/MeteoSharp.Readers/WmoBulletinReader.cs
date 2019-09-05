@@ -4,7 +4,9 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Reactive.Subjects;
 using System.Text;
+using System.Threading;
 using MeteoSharp.Bulletins;
 using MeteoSharp.Time;
 
@@ -27,6 +29,29 @@ namespace MeteoSharp.Readers
             var pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
             FillPipeAsync(stream, pipe.Writer);
             return ReadPipeAsync(pipe.Reader);
+        }
+
+        public IObservable<WmoBulletin> ReadAsObservable(Stream stream)
+        {
+            var subject = new Subject<WmoBulletin>();
+            BeginEnumeration(Read(stream));
+            return subject;
+
+            async void BeginEnumeration(IAsyncEnumerable<WmoBulletin> bulletins)
+            {
+                try
+                {
+                    await foreach (var bulletin in bulletins)
+                    {
+                        subject.OnNext(bulletin);
+                    }
+                    subject.OnCompleted();
+                }
+                catch (Exception ex)
+                {
+                    subject.OnError(ex);
+                }
+            }
         }
 
         private async void FillPipeAsync(Stream stream, PipeWriter writer)
@@ -287,7 +312,7 @@ namespace MeteoSharp.Readers
                             builder.A2 = span[3];
                             builder.ii = checked((byte) ((span[4] - '0') * 10 + (span[5] - '0')));
 
-                            builder.Location = span.Slice(7, 4).ToArray();
+                            builder.Location = BinaryPrimitives.ReadUInt32LittleEndian(span.Slice(7, 4));
                             int day = GetNumber(span.Slice(12, 2), data.GetPosition(12));
                             int hour = GetNumber(span.Slice(14, 2), data.GetPosition(14));
                             int minute = GetNumber(span.Slice(16, 2), data.GetPosition(16));
@@ -340,7 +365,7 @@ namespace MeteoSharp.Readers
 
                         string GetReport(in ReadOnlySpan<byte> span)
                         {
-                            return Encoding.ASCII.GetString(span.Slice(0, span.Length));
+                            return Encoding.ASCII.GetString(span.Slice(0, span.Length)).Trim();
                         }
 
                         (SequencePosition end, bool isBulletinEnd) GetEndPosition()
@@ -383,7 +408,7 @@ namespace MeteoSharp.Readers
             public byte A2 { get; set; }
             public byte ii { get; set; }
 
-            public byte[] Location { get; set; }
+            public uint Location { get; set; }
 
             public DayHourMinute Time { get; set; }
 
@@ -403,7 +428,7 @@ namespace MeteoSharp.Readers
             { 
                 return new WmoBulletin(T1, T2, A1, A2, ii, Type, 
                     Type == WmoBulletinType.Normal ? (byte)0 : (byte)(Index - 'A'),
-                    BinaryPrimitives.ReadUInt32LittleEndian(Location),
+                    Location,
                     Time,
                     TextReports);
             }
@@ -415,7 +440,7 @@ namespace MeteoSharp.Readers
                 A1 = 0;
                 A2 = 0;
                 ii = 0;
-                Location = null;
+                Location = 0;
                 Time = default;
                 IsMultipart = false;
                 Part = BulletinPart.First;
