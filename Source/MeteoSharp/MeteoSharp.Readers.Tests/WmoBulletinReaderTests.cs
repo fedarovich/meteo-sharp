@@ -15,7 +15,7 @@ namespace MeteoSharp.Readers.Tests
         [Test]
         public async Task SynopShort()
         {
-            await using var stream = OpenStream("synop.0001.data");
+            using var stream = OpenStream("synop.0001.data");
 
             var reader = new WmoBulletinReader();
             int count = 0;
@@ -29,7 +29,7 @@ namespace MeteoSharp.Readers.Tests
         [Test]
         public async Task SynopLong()
         {
-            await using var stream = OpenStream("synop.0113.data");
+            using var stream = OpenStream("synop.0113.data");
 
             var reader = new WmoBulletinReader();
             int count = 0;
