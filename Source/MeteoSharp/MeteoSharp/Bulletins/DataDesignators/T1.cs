@@ -32,7 +32,7 @@ namespace MeteoSharp.Bulletins.DataDesignators
         /// <summary>
         /// Satellite imagery
         /// </summary>
-        SatelliteImagery = (byte)'E',
+        [Binary] SatelliteImagery = (byte)'E',
         /// <summary>
         /// Forecasts
         /// </summary>
@@ -57,7 +57,10 @@ namespace MeteoSharp.Bulletins.DataDesignators
         /// CREX
         /// </summary>
         [CodeForm(CodeForm.CREX)] CREX = (byte)'K',
-        AviationInformationXml = (byte)'L',
+        /// <summary>
+        /// Aviation information in XML
+        /// </summary>
+        [Xml, CodeForm("FM 205", "IWXXM")] AviationInformationXml = (byte)'L',
 
         /// <summary>
         /// Notices

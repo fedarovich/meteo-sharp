@@ -7,7 +7,7 @@ using MeteoSharp.Codes;
 namespace MeteoSharp.Attibutes
 {
     [AttributeUsage(AttributeTargets.Enum | AttributeTargets.Field, AllowMultiple = true)]
-    public class CodeFormAttribute : Attribute
+    public class CodeFormAttribute : FormatAttribute
     {
         public string CodeForm { get; }
 

@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Text;
 
 namespace MeteoSharp.Attibutes
 {
     [AttributeUsage(AttributeTargets.Enum | AttributeTargets.Field)]
-    public class BinaryAttribute : FormatAttribute
+    public class XmlAttribute : FormatAttribute
     {
     }
 }
