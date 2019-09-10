@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
+using EnumsNET;
 using MeteoSharp.Codes;
 
 namespace MeteoSharp.Attibutes
@@ -34,12 +34,7 @@ namespace MeteoSharp.Attibutes
         public CodeFormAttribute(CodeForm standardCodeForm)
         {
             StandardCodeForm = standardCodeForm;
-            var attributes =
-                (from field in typeof(CodeForm).GetFields(BindingFlags.Public | BindingFlags.Static)
-                let value = (CodeForm) field.GetValue(null)
-                where value == standardCodeForm
-                select field.GetCustomAttribute<CodeFormAttribute>()).ToList();
-
+            var attributes = standardCodeForm.GetMember().Attributes.GetAll<CodeFormAttribute>().ToList();
             CodeForm = attributes[0].CodeForm;
             Name = attributes[0].Name;
             AlternativeNames = attributes.Skip(1).Select(x => x.Name).ToArray();
