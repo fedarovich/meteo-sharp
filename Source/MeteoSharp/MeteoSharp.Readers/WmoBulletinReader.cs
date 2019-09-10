@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
+using EnumsNET;
 using MeteoSharp.Bulletins;
 using MeteoSharp.Time;
 
@@ -338,31 +339,40 @@ namespace MeteoSharp.Readers
                         }
 
                         var reportSlice = data.Slice(data.Start, reportLength);
-                        do
+                        var productType = WmoBulletinProductTypeHelper.GetProductType(builder.T1, builder.T2);
+                        if (productType == WmoBulletinProductType.DecodableText)
                         {
-                            var (end, isBulletinEnd) = GetEndPosition();
-                            var slice = reportSlice.Slice(reportSlice.Start, end);
-
-                            string report;
-                            if (slice.IsSingleSegment)
+                            do
                             {
-                                report = GetReport(slice.First.Span);
-                            }
-                            else
-                            {
-                                Span<byte> span = stackalloc byte[(int) slice.Length];
-                                slice.CopyTo(span);
-                                report = GetReport(span);
-                            }
+                                var (end, isBulletinEnd) = GetEndPosition();
+                                var slice = reportSlice.Slice(reportSlice.Start, end);
 
-                            builder.TextReports.Add(report);
-                            if (isBulletinEnd)
-                            {
-                                break;
-                            }
+                                string report;
+                                if (slice.IsSingleSegment)
+                                {
+                                    report = GetReport(slice.First.Span);
+                                }
+                                else
+                                {
+                                    Span<byte> span = stackalloc byte[(int) slice.Length];
+                                    slice.CopyTo(span);
+                                    report = GetReport(span);
+                                }
 
-                            reportSlice = reportSlice.Slice(end).Slice(1);
-                        } while (!reportSlice.IsEmpty);
+                                builder.TextReports.Add(report);
+                                if (isBulletinEnd)
+                                {
+                                    break;
+                                }
+
+                                reportSlice = reportSlice.Slice(end).Slice(1);
+                            } while (!reportSlice.IsEmpty);
+                        }
+                        else
+                        {
+                            var report = SetBinaryReport();
+                            reportSlice.CopyTo(report);
+                        }
 
                         data = data.Slice(reportLength);
                         part = Part.End;
@@ -371,6 +381,21 @@ namespace MeteoSharp.Readers
                         string GetReport(in ReadOnlySpan<byte> span)
                         {
                             return Encoding.ASCII.GetString(span.Slice(0, span.Length)).Trim();
+                        }
+
+                        Span<byte> SetBinaryReport()
+                        {
+                            if (builder.BinaryReport == null)
+                            {
+                                builder.BinaryReport = new byte[reportLength];
+                                return builder.BinaryReport;
+                            }
+
+                            var binaryReport = builder.BinaryReport;
+                            var initialLength = binaryReport.Length;
+                            Array.Resize(ref binaryReport, initialLength + reportLength);
+                            builder.BinaryReport = binaryReport;
+                            return builder.BinaryReport.AsSpan(initialLength);
                         }
 
                         (SequencePosition end, bool isBulletinEnd) GetEndPosition()
@@ -431,7 +456,16 @@ namespace MeteoSharp.Readers
             public WmoBulletinType Type { get; set; }
 
             public WmoBulletin Build()
-            { 
+            {
+                if (BinaryReport != null)
+                {
+                    return new WmoBulletin(T1, T2, A1, A2, ii, Type,
+                        Type == WmoBulletinType.Normal ? (byte)0 : (byte)(Index - 'A'),
+                        Location,
+                        Time,
+                        BinaryReport);
+                }
+
                 return new WmoBulletin(T1, T2, A1, A2, ii, Type, 
                     Type == WmoBulletinType.Normal ? (byte)0 : (byte)(Index - 'A'),
                     Location,

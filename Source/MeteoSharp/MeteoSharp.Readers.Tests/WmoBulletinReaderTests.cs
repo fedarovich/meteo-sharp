@@ -41,6 +41,21 @@ namespace MeteoSharp.Readers.Tests
             Assert.That(count, Is.EqualTo(387));
         }
 
+        [Test]
+        public async Task RadarShort()
+        {
+            using var stream = OpenStream("radar.0000.data");
+
+            var reader = new WmoBulletinReader();
+            int count = 0;
+            await foreach (var bulletin in reader.Read(stream))
+            {
+                count += 1;
+                Assert.That(bulletin.BinaryReport.Length, Is.EqualTo(21490));
+            }
+            Assert.That(count, Is.EqualTo(1));
+        }
+
         private Stream OpenStream(string name)
         {
             var assembly = Assembly.GetExecutingAssembly();

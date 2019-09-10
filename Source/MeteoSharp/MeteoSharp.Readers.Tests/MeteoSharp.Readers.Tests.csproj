@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Data\radar.0000.data" />
+    <None Remove="Data\radar.0002.data" />
     <None Remove="Data\synop.0001.data" />
     <None Remove="Data\synop.0001.txt" />
     <None Remove="Data\synop.0113.data" />
@@ -15,6 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Data\radar.0000.data" />
+    <EmbeddedResource Include="Data\radar.0002.data" />
     <EmbeddedResource Include="Data\synop.0001.data" />
     <EmbeddedResource Include="Data\synop.0113.data" />
   </ItemGroup>
