@@ -4,9 +4,14 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Linq;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 using MeteoSharp.Bulletins;
 using MeteoSharp.Time;
 
@@ -24,24 +29,24 @@ namespace MeteoSharp.Readers
         {
         }
 
-        public IAsyncEnumerable<WmoBulletin> Read(Stream stream)
+        public IAsyncEnumerable<WmoBulletin> Read(Stream stream, CancellationToken token = default)
         {
             var pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
-            FillPipeAsync(stream, pipe.Writer);
-            return ReadPipeAsync(pipe.Reader);
+            FillPipeAsync(stream, pipe.Writer, token);
+            return ReadPipeAsync(pipe.Reader, token);
         }
 
-        public IObservable<WmoBulletin> ReadAsObservable(Stream stream)
+        public IObservable<WmoBulletin> ReadAsObservable(Stream stream, CancellationToken token = default)
         {
             var subject = new Subject<WmoBulletin>();
-            BeginEnumeration(Read(stream));
+            BeginEnumeration(Read(stream, token));
             return subject;
 
             async void BeginEnumeration(IAsyncEnumerable<WmoBulletin> bulletins)
             {
                 try
                 {
-                    await foreach (var bulletin in bulletins)
+                    await foreach (var bulletin in bulletins.WithCancellation(token))
                     {
                         subject.OnNext(bulletin);
                     }
@@ -54,7 +59,7 @@ namespace MeteoSharp.Readers
             }
         }
 
-        private async void FillPipeAsync(Stream stream, PipeWriter writer)
+        private async void FillPipeAsync(Stream stream, PipeWriter writer, CancellationToken token)
         {
             const int bufferSize = 512;
 
@@ -66,20 +71,20 @@ namespace MeteoSharp.Readers
                 while (true)
                 {
 #if NETSTANDARD2_0
-                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+                    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
                     if (bytesRead == 0)
                         break;
 
-                    var result = await writer.WriteAsync(new ReadOnlyMemory<byte>(buffer, 0, bytesRead)).ConfigureAwait(false);
+                    var result = await writer.WriteAsync(new ReadOnlyMemory<byte>(buffer, 0, bytesRead), token).ConfigureAwait(false);
 #else
                     var buffer = writer.GetMemory(bufferSize);
-                    int bytesRead = await stream.ReadAsync(buffer).ConfigureAwait(false);
+                    int bytesRead = await stream.ReadAsync(buffer, token).ConfigureAwait(false);
 
                     if (bytesRead == 0)
                         break;
 
                     writer.Advance(bytesRead);
-                    var result = await writer.FlushAsync().ConfigureAwait(false);
+                    var result = await writer.FlushAsync(token).ConfigureAwait(false);
 #endif
                     if (result.IsCompleted)
                         break;
@@ -99,10 +104,10 @@ namespace MeteoSharp.Readers
 #endif
         }
 
-        private async IAsyncEnumerable<WmoBulletin> ReadPipeAsync(PipeReader reader, bool? hasSupplementaryIdentificationLine = null)
+        private async IAsyncEnumerable<WmoBulletin> ReadPipeAsync(PipeReader reader, [EnumeratorCancellation] CancellationToken token)
         {
-            var builders = new Dictionary<byte[], BulletingBuilder>(new ByteArrayEqualityComparer());
-            BulletingBuilder builder = null;
+            var builders = new Dictionary<byte[], BulletinBuilder>(new ByteArrayEqualityComparer());
+            BulletinBuilder builder = null;
 
             var part = Part.None;
             byte marker = 0;
@@ -112,7 +117,7 @@ namespace MeteoSharp.Readers
 
             while (true)
             {
-                var result = await reader.ReadAsync();
+                var result = await reader.ReadAsync(token);
                 if (result.IsCanceled)
                     break;
 
@@ -286,7 +291,7 @@ namespace MeteoSharp.Readers
                                         }
                                         else
                                         {
-                                            builder = new BulletingBuilder {IsMultipart = true, Part = BulletinPart.First};
+                                            builder = new BulletinBuilder {IsMultipart = true, Part = BulletinPart.First};
                                             builders.Add(key, builder);
                                         }
 
@@ -300,7 +305,7 @@ namespace MeteoSharp.Readers
 
                             if (builder == null || (builder.IsMultipart && !multipart))
                             {
-                                builder = new BulletingBuilder();
+                                builder = new BulletinBuilder();
                             }
 
                             builder.Type = type;
@@ -332,13 +337,13 @@ namespace MeteoSharp.Readers
                             return false;
                         }
 
-                        string report;
                         var reportSlice = data.Slice(data.Start, reportLength);
                         do
                         {
                             var (end, isBulletinEnd) = GetEndPosition();
                             var slice = reportSlice.Slice(reportSlice.Start, end);
 
+                            string report;
                             if (slice.IsSingleSegment)
                             {
                                 report = GetReport(slice.First.Span);
@@ -385,6 +390,7 @@ namespace MeteoSharp.Readers
                     static int GetNumber(in ReadOnlySpan<byte> bytes, in SequencePosition pos)
                     {
                         int number = 0;
+                        // ReSharper disable once ForCanBeConvertedToForeach
                         for (int i = 0; i < bytes.Length; i++)
                         {
                             int x = bytes[i] - (byte) '0';
@@ -400,7 +406,7 @@ namespace MeteoSharp.Readers
             }
         }
 
-        private class BulletingBuilder
+        private class BulletinBuilder
         {
             public byte T1 { get; set; }
             public byte T2 { get; set; }
