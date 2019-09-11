@@ -339,8 +339,8 @@ namespace MeteoSharp.Readers
                         }
 
                         var reportSlice = data.Slice(data.Start, reportLength);
-                        var productType = WmoBulletinProductTypeHelper.GetProductType(builder.T1, builder.T2);
-                        if (productType == WmoBulletinProductType.DecodableText)
+                        var productType = WmoBulletinProductTypesHelper.GetProductTypes(builder.T1, builder.T2);
+                        if (productType == WmoBulletinProductTypes.DecodableText)
                         {
                             do
                             {

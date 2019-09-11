@@ -5,7 +5,7 @@ using System.Text;
 namespace MeteoSharp.Bulletins
 {
     [Flags]
-    public enum WmoBulletinProductType : byte
+    public enum WmoBulletinProductTypes : byte
     {
         Unknown = 0,
         DecodableText = 0x01,

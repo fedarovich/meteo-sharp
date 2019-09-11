@@ -8,21 +8,21 @@ using MeteoSharp.Codes;
 
 namespace MeteoSharp.Bulletins
 {
-    public static class WmoBulletinProductTypeHelper
+    public static class WmoBulletinProductTypesHelper
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static WmoBulletinProductType GetProductType(in this WmoBulletin bulletin) =>
-            GetProductType((byte) bulletin.T1, (byte) bulletin.T2);
+        public static WmoBulletinProductTypes GetProductTypes(in this WmoBulletin bulletin) =>
+            GetProductTypes((byte) bulletin.T1, (byte) bulletin.T2);
 
-        public static WmoBulletinProductType GetProductType(byte t1, byte t2)
+        public static WmoBulletinProductTypes GetProductTypes(byte t1, byte t2)
         {
-            WmoBulletinProductType productType = default;
+            WmoBulletinProductTypes productTypes = default;
             ProcessEnum((T1)t1);
-            if (productType != default)
-                return productType;
+            if (productTypes != default)
+                return productTypes;
 
-            if (productType != default)
-                return productType;
+            if (productTypes != default)
+                return productTypes;
 
             switch ((T1)t1)
             {
@@ -41,7 +41,7 @@ namespace MeteoSharp.Bulletins
                 case T1.SurfaceData:
                     ProcessEnum((T2S)t2);
                     if ((T2S) t2 == T2S.SeismicData)
-                        productType |= WmoBulletinProductType.DecodableText;
+                        productTypes |= WmoBulletinProductTypes.DecodableText;
                     break;
                 case T1.SatelliteData:
                     ProcessEnum((T2T)t2);
@@ -54,7 +54,7 @@ namespace MeteoSharp.Bulletins
                     break;
             }
 
-            return productType;
+            return productTypes;
 
             void ProcessEnum<T>(T value) where T : struct, Enum
             {
@@ -64,24 +64,24 @@ namespace MeteoSharp.Bulletins
                     switch (attribute)
                     {
                         case BinaryAttribute _:
-                            productType |= WmoBulletinProductType.Binary;
+                            productTypes |= WmoBulletinProductTypes.Binary;
                             break;
                         case TextAttribute _:
-                            productType |= WmoBulletinProductType.PlainText;
+                            productTypes |= WmoBulletinProductTypes.PlainText;
                             break;
                         case XmlAttribute _:
-                            productType |= WmoBulletinProductType.Xml;
+                            productTypes |= WmoBulletinProductTypes.Xml;
                             break;
                         case AnyFormatAttribute any when (any.AlphanumericOnly):
-                            productType |= WmoBulletinProductType.PlainText | WmoBulletinProductType.DecodableText;
+                            productTypes |= WmoBulletinProductTypes.PlainText | WmoBulletinProductTypes.DecodableText;
                             break;
                         case AnyFormatAttribute _:
-                            productType |= WmoBulletinProductType.Any;
+                            productTypes |= WmoBulletinProductTypes.Any;
                             break;
                         case CodeFormAttribute cf when cf.StandardCodeForm != CodeForm.Invalid:
-                            productType |= cf.StandardCodeForm.GetAttributes()?.Has<BinaryAttribute>() ?? false
-                                ? WmoBulletinProductType.Binary
-                                : WmoBulletinProductType.DecodableText;
+                            productTypes |= cf.StandardCodeForm.GetAttributes()?.Has<BinaryAttribute>() ?? false
+                                ? WmoBulletinProductTypes.Binary
+                                : WmoBulletinProductTypes.DecodableText;
                             break;
                     }
                 }

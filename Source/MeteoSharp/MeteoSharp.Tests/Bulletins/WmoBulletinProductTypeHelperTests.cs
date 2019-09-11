@@ -41,10 +41,10 @@ namespace MeteoSharp.Tests.Bulletins
 
         [Test]
         [TestCaseSource(nameof(GetProductTypeTestCaseSources))]
-        public void GetProductType(char t1, char t2, WmoBulletinProductType expectedType)
+        public void GetProductType(char t1, char t2, WmoBulletinProductTypes expectedTypes)
         {
-            var actualType = WmoBulletinProductTypeHelper.GetProductType((byte) t1, (byte) t2);
-            Assert.That(actualType, Is.EqualTo(expectedType));
+            var actualType = WmoBulletinProductTypesHelper.GetProductTypes((byte) t1, (byte) t2);
+            Assert.That(actualType, Is.EqualTo(expectedTypes));
         }
         
         private static IEnumerable<object[]> GetProductTypeSources()
@@ -53,7 +53,7 @@ namespace MeteoSharp.Tests.Bulletins
             {
                 for (int t2 = 0; t2 < 26; t2++)
                 {
-                    yield return new object[] { (char)(t1 + 'A'), (char)(t2 + 'A'), (WmoBulletinProductType)Types[t1, t2] };
+                    yield return new object[] { (char)(t1 + 'A'), (char)(t2 + 'A'), (WmoBulletinProductTypes)Types[t1, t2] };
                 }
             }
         }
