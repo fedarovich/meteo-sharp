@@ -8,25 +8,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Data\radar.0000.data" />
-    <None Remove="Data\radar.0002.data" />
-    <None Remove="Data\synop.0001.data" />
-    <None Remove="Data\synop.0001.txt" />
-    <None Remove="Data\synop.0113.data" />
-    <None Remove="Data\synop.0113.txt" />
+    <None Remove="Data\*.data" />
+    <EmbeddedResource Include="Data\*.data" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Data\radar.0000.data" />
-    <EmbeddedResource Include="Data\radar.0002.data" />
-    <EmbeddedResource Include="Data\synop.0001.data" />
-    <EmbeddedResource Include="Data\synop.0113.data" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="nunit" Version="3.11.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="3.11.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
+    <PackageReference Include="FluentAssertions" Version="5.9.0" />
+    <PackageReference Include="nunit" Version="3.12.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="3.15.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.2.0" />
   </ItemGroup>
 
   <ItemGroup>

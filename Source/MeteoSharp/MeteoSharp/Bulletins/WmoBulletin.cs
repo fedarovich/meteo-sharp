@@ -6,11 +6,11 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Xml.Linq;
 using MeteoSharp.Time;
 
 namespace MeteoSharp.Bulletins
 {
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
     [SuppressMessage("ReSharper", "ConvertToAutoProperty")]
     public readonly struct WmoBulletin
     {
@@ -19,12 +19,13 @@ namespace MeteoSharp.Bulletins
         private readonly byte _a1;
         private readonly byte _a2;
         private readonly byte _ii;
-        private readonly byte _reserved;
+        private readonly byte _flags;
         private readonly WmoBulletinType _type;
         private readonly byte _bbbIndex;
         private readonly uint _cccc;
         private readonly DayHourMinute _time;
         private readonly object _report;
+        private readonly string _supplementaryIdentificationLine;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public WmoBulletin(
@@ -32,12 +33,15 @@ namespace MeteoSharp.Bulletins
             byte t2, 
             byte a1, 
             byte a2, 
-            byte ii, 
+            byte ii,
+            WmoBulletinProductType productType,
             WmoBulletinType type, 
             byte bbbIndex, 
             uint cccc, 
             DayHourMinute time, 
-            IEnumerable<string> reports) : this(t1, t2, a1, a2, ii, type, bbbIndex, cccc, time, reports.ToList())
+            IEnumerable<string> textReports,
+            string supplementaryIdentificationLine) 
+            : this(t1, t2, a1, a2, ii, productType, type, bbbIndex, cccc, time, textReports.ToList(), null, supplementaryIdentificationLine)
         {
         }
 
@@ -48,12 +52,61 @@ namespace MeteoSharp.Bulletins
             byte a1,
             byte a2,
             byte ii,
+            WmoBulletinProductType productType,
             WmoBulletinType type,
             byte bbbIndex,
             uint cccc,
             DayHourMinute time,
-            IEnumerable<byte> binaryReport) : this(t1, t2, a1, a2, ii, type, bbbIndex, cccc, time, binaryReport.ToArray())
+            XDocument xmlReport,
+            string supplementaryIdentificationLine)
+            : this(t1, t2, a1, a2, ii, productType, type, bbbIndex, cccc, time, null, xmlReport, supplementaryIdentificationLine)
         {
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public WmoBulletin(
+            byte t1,
+            byte t2,
+            byte a1,
+            byte a2,
+            byte ii,
+            WmoBulletinProductType productType,
+            WmoBulletinType type,
+            byte bbbIndex,
+            uint cccc,
+            DayHourMinute time,
+            IEnumerable<byte> binaryReport,
+            string supplementaryIdentificationLine) 
+            : this(t1, t2, a1, a2, ii, productType, type, bbbIndex, cccc, time, binaryReport.ToArray(), supplementaryIdentificationLine)
+        {
+        }
+
+        internal WmoBulletin(byte t1,
+            byte t2,
+            byte a1,
+            byte a2,
+            byte ii,
+            WmoBulletinProductType productType,
+            WmoBulletinType type,
+            byte bbbIndex,
+            uint cccc,
+            DayHourMinute time,
+            List<string> reports,
+            XDocument xmlReport,
+            string supplementaryIdentificationLine) : this()
+        {
+            _t1 = t1;
+            _t2 = t2;
+            _a1 = a1;
+            _a2 = a2;
+            _ii = ii;
+            _type = type;
+            _flags |= (byte)productType;
+            _bbbIndex = bbbIndex;
+            _cccc = cccc;
+            _time = time;
+            _report = xmlReport ?? (object)reports;
+            _supplementaryIdentificationLine = supplementaryIdentificationLine;
         }
 
         internal WmoBulletin(
@@ -62,47 +115,26 @@ namespace MeteoSharp.Bulletins
             byte a1,
             byte a2,
             byte ii,
+            WmoBulletinProductType productType,
             WmoBulletinType type,
             byte bbbIndex,
             uint cccc,
             DayHourMinute time,
-            List<string> reports
-            ) : this()
+            byte[] binaryReport,
+            string supplementaryIdentificationLine) : this()
         {
             _t1 = t1;
             _t2 = t2;
             _a1 = a1;
             _a2 = a2;
             _ii = ii;
+            _flags |= (byte) productType;
             _type = type;
             _bbbIndex = bbbIndex;
             _cccc = cccc;
             _time = time;
-            _report = reports.ToArray();
-        }
-
-        internal WmoBulletin(
-            byte t1,
-            byte t2,
-            byte a1,
-            byte a2,
-            byte ii,
-            WmoBulletinType type,
-            byte bbbIndex,
-            uint cccc,
-            DayHourMinute time,
-            byte[] binaryReport) : this()
-        {
-            _t1 = t1;
-            _t2 = t2;
-            _a1 = a1;
-            _a2 = a2;
-            _ii = ii;
-            _type = type;
-            _bbbIndex = bbbIndex;
-            _cccc = cccc;
-            _time = time;
-            _report = binaryReport.ToArray();
+            _report = binaryReport;
+            _supplementaryIdentificationLine = supplementaryIdentificationLine;
         }
 
         public char T1 => (char)_t1;
@@ -111,7 +143,8 @@ namespace MeteoSharp.Bulletins
         public char A2 => (char)_a2;
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         public byte ii => _ii;
-        
+
+        public WmoBulletinProductType ProductType => (WmoBulletinProductType) (_flags & 0b_0000_0011);
         public WmoBulletinType Type => _type;
         public byte Index => _bbbIndex;
         public char IndexChar => (char)('A' + _bbbIndex);
@@ -136,5 +169,9 @@ namespace MeteoSharp.Bulletins
         public IReadOnlyList<string> TextReports => _report as IReadOnlyList<string>;
 
         public ReadOnlyMemory<byte> BinaryReport => new ReadOnlyMemory<byte>(_report as byte[]);
+
+        public XDocument XmlReport => _report as XDocument;
+
+        public string SupplementaryIdentificationLine => _supplementaryIdentificationLine;
     }
 }

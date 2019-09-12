@@ -4,20 +4,20 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
-using System.Linq;
-using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
-using EnumsNET;
+using System.Xml.Linq;
 using MeteoSharp.Bulletins;
 using MeteoSharp.Time;
 
 namespace MeteoSharp.Readers
 {
+    /// <summary>
+    /// Represents a reader that can read a sequential series of <see cref="WmoBulletin"/>.
+    /// </summary>
     public class WmoBulletinReader
     {
         private const byte StarMarker = (byte) '*';
@@ -26,10 +26,26 @@ namespace MeteoSharp.Readers
         private static readonly ReadOnlyMemory<byte> StarMarkers = new [] { StarMarker, StarMarker, StarMarker, StarMarker };
         private static readonly ReadOnlyMemory<byte> HashMarkers = new [] { HashMarker, HashMarker, HashMarker, HashMarker };
 
-        public WmoBulletinReader()
+        private readonly SupplementaryIdentificationLineResolver? _supplementaryIdentificationLineResolver;
+        private readonly WmoBulletinProductType? _expectedProductType;
+        private readonly XmlParsingBehavior _xmlParsingBehavior;
+
+        public WmoBulletinReader(
+            SupplementaryIdentificationLineResolver supplementaryIdentificationLineResolver = null, 
+            WmoBulletinProductType? expectedProductType = null,
+            XmlParsingBehavior xmlParsingBehavior = XmlParsingBehavior.Parse)
         {
+            _supplementaryIdentificationLineResolver = supplementaryIdentificationLineResolver;
+            _expectedProductType = expectedProductType;
+            _xmlParsingBehavior = xmlParsingBehavior;
         }
 
+        /// <summary>
+        /// Reads the streams and returns the WMO bulletins as <see cref="IAsyncEnumerable{WmoBulletin}"/>.
+        /// </summary>
+        /// <param name="stream">The input stream.</param>
+        /// <param name="token">The cancellation token.</param>
+        /// <returns><see cref="IAsyncEnumerable{WmoBulletin}"/></returns>
         public IAsyncEnumerable<WmoBulletin> Read(Stream stream, CancellationToken token = default)
         {
             var pipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
@@ -37,6 +53,12 @@ namespace MeteoSharp.Readers
             return ReadPipeAsync(pipe.Reader, token);
         }
 
+        /// <summary>
+        /// Reads the streams and returns the WMO bulletins as <see cref="IObservable{WmoBulletin}"/>.
+        /// </summary>
+        /// <param name="stream">The input stream.</param>
+        /// <param name="token">The cancellation token.</param>
+        /// <returns><see cref="IObservable{WmoBulletin}"/></returns>
         public IObservable<WmoBulletin> ReadAsObservable(Stream stream, CancellationToken token = default)
         {
             var subject = new Subject<WmoBulletin>();
@@ -292,7 +314,7 @@ namespace MeteoSharp.Readers
                                         }
                                         else
                                         {
-                                            builder = new BulletinBuilder {IsMultipart = true, Part = BulletinPart.First};
+                                            builder = new BulletinBuilder(this) {IsMultipart = true, Part = BulletinPart.First};
                                             builders.Add(key, builder);
                                         }
 
@@ -306,7 +328,7 @@ namespace MeteoSharp.Readers
 
                             if (builder == null || (builder.IsMultipart && !multipart))
                             {
-                                builder = new BulletinBuilder();
+                                builder = new BulletinBuilder(this);
                             }
 
                             builder.Type = type;
@@ -323,6 +345,28 @@ namespace MeteoSharp.Readers
                             int hour = GetNumber(span.Slice(14, 2), data.GetPosition(14));
                             int minute = GetNumber(span.Slice(16, 2), data.GetPosition(16));
                             builder.Time = new DayHourMinute(day, hour, minute);
+
+                            var productTypes = WmoBulletinProductTypesHelper.GetProductTypes(builder.T1, builder.T2);
+                            byte productTypesBits = (byte) productTypes;
+                            if (productTypesBits == 0)
+                            {
+                                builder.ProductType = _expectedProductType ?? throw new InvalidOperationException();
+                            }
+                            else if (IsPowerOf2(productTypesBits))
+                            {
+                                var productType = FromBit(productTypes);
+                                builder.ProductType = (_expectedProductType == null || _expectedProductType == productType)
+                                    ? productType
+                                    : throw new InvalidOperationException();
+                            }
+                            else if (_expectedProductType != null && (productTypesBits & (1 << (byte)_expectedProductType.Value)) != 0)
+                            {
+                                builder.ProductType = _expectedProductType.Value;
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException();
+                            }
                         }
                     }
 
@@ -339,8 +383,33 @@ namespace MeteoSharp.Readers
                         }
 
                         var reportSlice = data.Slice(data.Start, reportLength);
-                        var productType = WmoBulletinProductTypesHelper.GetProductTypes(builder.T1, builder.T2);
-                        if (productType == WmoBulletinProductTypes.DecodableText)
+                        if (_supplementaryIdentificationLineResolver != null)
+                        {
+                            var supplementaryIdentificationLine = _supplementaryIdentificationLineResolver.Invoke(ref reportSlice, builder.T1, builder.T2);
+                            builder.SupplementaryIdentificationLine ??= supplementaryIdentificationLine;
+                        }
+
+                        switch (builder.ProductType)
+                        {
+                            case WmoBulletinProductType.DecodableText:
+                                SetDecodableTextReport();
+                                break;
+                            case WmoBulletinProductType.PlainText:
+                            case WmoBulletinProductType.Xml:
+                                SetPlainTextReport();
+                                break;
+                            case WmoBulletinProductType.Binary:
+                                SetBinaryReport();
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+
+                        data = data.Slice(reportLength);
+                        part = Part.End;
+                        return true;
+
+                        void SetDecodableTextReport()
                         {
                             do
                             {
@@ -350,13 +419,13 @@ namespace MeteoSharp.Readers
                                 string report;
                                 if (slice.IsSingleSegment)
                                 {
-                                    report = GetReport(slice.First.Span);
+                                    report = GetAsciiString(slice.First.Span);
                                 }
                                 else
                                 {
-                                    Span<byte> span = stackalloc byte[(int) slice.Length];
+                                    Span<byte> span = stackalloc byte[(int)slice.Length];
                                     slice.CopyTo(span);
-                                    report = GetReport(span);
+                                    report = GetAsciiString(span);
                                 }
 
                                 builder.TextReports.Add(report);
@@ -367,35 +436,43 @@ namespace MeteoSharp.Readers
 
                                 reportSlice = reportSlice.Slice(end).Slice(1);
                             } while (!reportSlice.IsEmpty);
-                        }
-                        else
-                        {
-                            var report = SetBinaryReport();
-                            reportSlice.CopyTo(report);
+
+
                         }
 
-                        data = data.Slice(reportLength);
-                        part = Part.End;
-                        return true;
-
-                        string GetReport(in ReadOnlySpan<byte> span)
+                        void SetPlainTextReport()
                         {
-                            return Encoding.ASCII.GetString(span.Slice(0, span.Length)).Trim();
+                            string report;
+                            if (reportSlice.IsSingleSegment)
+                            {
+                                report = GetAsciiString(reportSlice.First.Span);
+                            }
+                            else
+                            {
+                                Span<byte> span = stackalloc byte[(int)reportSlice.Length];
+                                reportSlice.CopyTo(span);
+                                report = GetAsciiString(span);
+                            }
+                            builder.TextReports.Add(report);
                         }
 
-                        Span<byte> SetBinaryReport()
+                        void SetBinaryReport()
                         {
+                            Span<byte> span;
                             if (builder.BinaryReport == null)
                             {
-                                builder.BinaryReport = new byte[reportLength];
-                                return builder.BinaryReport;
+                                builder.BinaryReport = new byte[reportSlice.Length];
+                                span = builder.BinaryReport;
                             }
-
-                            var binaryReport = builder.BinaryReport;
-                            var initialLength = binaryReport.Length;
-                            Array.Resize(ref binaryReport, initialLength + reportLength);
-                            builder.BinaryReport = binaryReport;
-                            return builder.BinaryReport.AsSpan(initialLength);
+                            else
+                            {
+                                var binaryReport = builder.BinaryReport;
+                                var initialLength = binaryReport.Length;
+                                Array.Resize(ref binaryReport, initialLength + (int)reportSlice.Length);
+                                builder.BinaryReport = binaryReport;
+                                span = builder.BinaryReport.AsSpan(initialLength);
+                            }
+                            reportSlice.CopyTo(span);
                         }
 
                         (SequencePosition end, bool isBulletinEnd) GetEndPosition()
@@ -431,8 +508,32 @@ namespace MeteoSharp.Readers
             }
         }
 
-        private class BulletinBuilder
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IsPowerOf2(byte v) => (v & (v - 1)) == 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static WmoBulletinProductType FromBit(WmoBulletinProductTypes types) =>
+            types switch
+            {
+                WmoBulletinProductTypes.DecodableText => WmoBulletinProductType.DecodableText,
+                WmoBulletinProductTypes.PlainText => WmoBulletinProductType.PlainText,
+                WmoBulletinProductTypes.Binary => WmoBulletinProductType.Binary,
+                WmoBulletinProductTypes.Xml => WmoBulletinProductType.Xml,
+                _ => throw new InvalidOperationException(),
+            };
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        string GetAsciiString(in ReadOnlySpan<byte> span) => Encoding.ASCII.GetString(span.Slice(0, span.Length)).Trim();
+
+        private sealed class BulletinBuilder
         {
+            private readonly WmoBulletinReader _reader;
+
+            public BulletinBuilder(WmoBulletinReader reader)
+            {
+                _reader = reader;
+            }
+
             public byte T1 { get; set; }
             public byte T2 { get; set; }
             public byte A1 { get; set; }
@@ -455,22 +556,46 @@ namespace MeteoSharp.Readers
 
             public WmoBulletinType Type { get; set; }
 
+            public WmoBulletinProductType ProductType { get; set; }
+
+            public string SupplementaryIdentificationLine { get; set; }
+
             public WmoBulletin Build()
             {
-                if (BinaryReport != null)
+                return ProductType switch
                 {
-                    return new WmoBulletin(T1, T2, A1, A2, ii, Type,
-                        Type == WmoBulletinType.Normal ? (byte)0 : (byte)(Index - 'A'),
-                        Location,
-                        Time,
-                        BinaryReport);
-                }
+                    WmoBulletinProductType.DecodableText => new WmoBulletin(T1, T2, A1, A2, ii, ProductType, Type,
+                        Type == WmoBulletinType.Normal ? (byte) 0 : (byte) (Index - 'A'), Location, Time, TextReports, null,
+                        SupplementaryIdentificationLine),
+                    WmoBulletinProductType.PlainText => new WmoBulletin(T1, T2, A1, A2, ii, ProductType, Type,
+                        Type == WmoBulletinType.Normal ? (byte) 0 : (byte) (Index - 'A'), Location, Time, TextReports, null,
+                        SupplementaryIdentificationLine),
+                    WmoBulletinProductType.Binary => new WmoBulletin(T1, T2, A1, A2, ii, ProductType, Type,
+                        Type == WmoBulletinType.Normal ? (byte) 0 : (byte) (Index - 'A'), Location, Time, BinaryReport,
+                        SupplementaryIdentificationLine),
+                    WmoBulletinProductType.Xml => new WmoBulletin(T1, T2, A1, A2, ii, ProductType, Type,
+                        Type == WmoBulletinType.Normal ? (byte) 0 : (byte) (Index - 'A'), Location, Time, TextReports, ParseXml(), 
+                        SupplementaryIdentificationLine),
+                    _ => throw new ArgumentOutOfRangeException()
+                };
 
-                return new WmoBulletin(T1, T2, A1, A2, ii, Type, 
-                    Type == WmoBulletinType.Normal ? (byte)0 : (byte)(Index - 'A'),
-                    Location,
-                    Time,
-                    TextReports);
+                XDocument ParseXml()
+                {
+                    if (_reader._xmlParsingBehavior == XmlParsingBehavior.DoNotParse)
+                        return null;
+
+                    try
+                    {
+                        return XDocument.Parse(string.Concat(TextReports));
+                    }
+                    catch (Exception)
+                    {
+                        if (_reader._xmlParsingBehavior == XmlParsingBehavior.ParseIgnoreErrors)
+                            return null;
+
+                        throw;
+                    }
+                }
             }
 
             public void Reset()
