@@ -8,7 +8,7 @@ namespace MeteoSharp.Time
 #if NETSTANDARD2_0
     [Serializable]
 #endif
-    public struct DayHourMinute : IEquatable<DayHourMinute>
+    public readonly struct DayHourMinute : IEquatable<DayHourMinute>
     {
         private readonly int _value;
 
