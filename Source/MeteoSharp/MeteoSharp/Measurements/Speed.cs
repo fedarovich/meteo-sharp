@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using MeteoSharp.Core;
 
 namespace MeteoSharp.Measurements
 {
@@ -51,7 +52,7 @@ namespace MeteoSharp.Measurements
         /// </summary>
         /// <param name="value">The Speed value.</param>
         /// <param name="unit">The Speed unit.</param>
-        public Speed(decimal value, SpeedUnit unit)
+        public Speed(SmallDecimal value, SpeedUnit unit)
         {
             Value = value;
             Unit = unit;
@@ -60,7 +61,7 @@ namespace MeteoSharp.Measurements
         /// <summary>
         /// Gets the value.
         /// </summary>
-        public decimal Value { get; }
+        public SmallDecimal Value { get; }
 
         /// <summary>
         /// Gets the unit.
@@ -70,7 +71,7 @@ namespace MeteoSharp.Measurements
         /// <summary>
         /// Gets the value in the specified <paramref name="unit"/>s.
         /// </summary>
-        public decimal ValueIn(SpeedUnit unit) => Conversions.ConvertValue(this, unit);
+        public SmallDecimal ValueIn(SpeedUnit unit) => Conversions.ConvertValue(this, unit);
 
         /// <summary>
         /// Gets the <see cref="Speed"/> in the specified <paramref name="unit"/>s.
@@ -79,7 +80,7 @@ namespace MeteoSharp.Measurements
 
         public override string ToString() => $"{Value} {Abbreviations[(int)Unit]}";
 
-        public void Deconstruct(out decimal value, out SpeedUnit unit)
+        public void Deconstruct(out SmallDecimal value, out SpeedUnit unit)
         {
             value = Value;
             unit = Unit;

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using MeteoSharp.Core;
 
 namespace MeteoSharp.Measurements
 {
@@ -34,7 +35,7 @@ namespace MeteoSharp.Measurements
         /// </summary>
         /// <param name="value">The Temperature value.</param>
         /// <param name="unit">The Temperature unit.</param>
-        public Temperature(decimal value, TemperatureUnit unit)
+        public Temperature(SmallDecimal value, TemperatureUnit unit)
         {
             Value = value;
             Unit = unit;
@@ -43,7 +44,7 @@ namespace MeteoSharp.Measurements
         /// <summary>
         /// Gets the value.
         /// </summary>
-        public decimal Value { get; }
+        public SmallDecimal Value { get; }
 
         /// <summary>
         /// Gets the unit.
@@ -53,7 +54,7 @@ namespace MeteoSharp.Measurements
         /// <summary>
         /// Gets the value in the specified <paramref name="unit"/>s.
         /// </summary>
-        public decimal ValueIn(TemperatureUnit unit)
+        public SmallDecimal ValueIn(TemperatureUnit unit)
         {
             if (Unit == unit)
                 return Value;
@@ -80,9 +81,9 @@ namespace MeteoSharp.Measurements
                 case TemperatureUnit.Kelvin:
                     return Value;
                 case TemperatureUnit.Celsius:
-                    return Value + 273.15m;
+                    return Value.ToDecimal() + 273.15m;
                 case TemperatureUnit.Fahrenheit:
-                    return (Value + 459.67m) * 5 / 9;
+                    return (Value.ToDecimal() + 459.67m) * 5 / 9;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -93,11 +94,11 @@ namespace MeteoSharp.Measurements
             switch (Unit)
             {
                 case TemperatureUnit.Kelvin:
-                    return Value - 273.15m;
+                    return Value.ToDecimal() - 273.15m;
                 case TemperatureUnit.Celsius:
                     return Value;
                 case TemperatureUnit.Fahrenheit:
-                    return (Value - 32m) * 5 / 9;
+                    return (Value.ToDecimal() - 32m) * 5 / 9;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -108,9 +109,9 @@ namespace MeteoSharp.Measurements
             switch (Unit)
             {
                 case TemperatureUnit.Kelvin:
-                    return Value*9/5 - 459.67m;
+                    return Value.ToDecimal() * 9/5 - 459.67m;
                 case TemperatureUnit.Celsius:
-                    return Value*9/5 + 32m;
+                    return Value.ToDecimal() * 9/5 + 32m;
                 case TemperatureUnit.Fahrenheit:
                     return Value;
                 default:
@@ -120,7 +121,7 @@ namespace MeteoSharp.Measurements
 
         public override string ToString() => $"{Value} {Abbreviations[(int)Unit]}";
 
-        public void Deconstruct(out decimal value, out TemperatureUnit unit)
+        public void Deconstruct(out SmallDecimal value, out TemperatureUnit unit)
         {
             value = Value;
             unit = Unit;

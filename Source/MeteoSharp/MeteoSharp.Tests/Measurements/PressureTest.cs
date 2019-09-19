@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using MeteoSharp.Core;
 using MeteoSharp.Measurements;
 using NUnit.Framework;
 
@@ -34,7 +35,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values] PressureUnit unit)
         {
             Pressure pressure = (value, unit);
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(unit));
         }
 
@@ -44,7 +45,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values] PressureUnit unit)
         {
             Pressure pressure = (value, unit);
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(unit));
         }
 
@@ -57,7 +58,7 @@ namespace MeteoSharp.Tests.Measurements
             Pressure pres1 = new Pressure(value1, unit);
             Pressure pres2 = new Pressure(value2, unit);
             Pressure sum = pres1 + pres2;
-            Assert.That(sum.Value, Is.EqualTo(value1 + value2));
+            Assert.That(sum.Value, Is.EqualTo((SmallDecimal) (value1 + value2)));
             Assert.That(sum.Unit, Is.EqualTo(unit));
         }
 
@@ -91,7 +92,7 @@ namespace MeteoSharp.Tests.Measurements
             Pressure pres1 = new Pressure(value1, unit);
             Pressure pres2 = new Pressure(value2, unit);
             Pressure diff = pres1 - pres2;
-            Assert.That(diff.Value, Is.EqualTo(value1 - value2));
+            Assert.That(diff.Value, Is.EqualTo((SmallDecimal) (value1 - value2)));
             Assert.That(diff.Unit, Is.EqualTo(unit));
         }
 
@@ -122,7 +123,7 @@ namespace MeteoSharp.Tests.Measurements
             [ValueSource(nameof(UnitPressure))] Pressure unitPressure)
         {
             Pressure pressure = value * unitPressure;
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(unitPressure.Unit));
         }
 
@@ -132,7 +133,7 @@ namespace MeteoSharp.Tests.Measurements
             [ValueSource(nameof(UnitPressure))] Pressure unitPressure)
         {
             Pressure pressure = value * unitPressure;
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(unitPressure.Unit));
         }
 
@@ -142,7 +143,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values(-5.45, -3, 0, 5, 12.4)] decimal value)
         {
             Pressure pressure = unitPressure * value;
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(unitPressure.Unit));
         }
 
@@ -152,7 +153,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values(-3, 0, 5)] int value)
         {
             Pressure pressure = unitPressure * value;
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(unitPressure.Unit));
         }
 
@@ -163,7 +164,7 @@ namespace MeteoSharp.Tests.Measurements
         {
             var originalUnit = pressure.Unit;
             pressure *= value;
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(originalUnit));
         }
 
@@ -174,7 +175,7 @@ namespace MeteoSharp.Tests.Measurements
         {
             var originalUnit = pressure.Unit;
             pressure *= value;
-            Assert.That(pressure.Value, Is.EqualTo(value));
+            Assert.That(pressure.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(pressure.Unit, Is.EqualTo(originalUnit));
         }
 
@@ -190,7 +191,7 @@ namespace MeteoSharp.Tests.Measurements
             var pres23 = pres2.In(unit3);
 
             var err = Math.Abs(pres23.Value - pres3.Value) / pres3.Value;
-            Assert.That(err, Is.LessThan(1e-8m));
+            Assert.That(err.ToDecimal(), Is.LessThan(1e-7m));
             Assert.That(pres23.Unit, Is.EqualTo(pres3.Unit));
         }
 
@@ -205,7 +206,7 @@ namespace MeteoSharp.Tests.Measurements
             var val23 = pres.In(unit2).ValueIn(unit3);
 
             var err = Math.Abs(val23 - val3) / val3;
-            Assert.That(err, Is.LessThan(1e-8m));
+            Assert.That(err.ToDecimal(), Is.LessThan(1e-7m));
         }
     }
 }

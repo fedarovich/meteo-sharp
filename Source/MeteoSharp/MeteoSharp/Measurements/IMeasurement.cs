@@ -1,15 +1,16 @@
 ﻿using System;
+using MeteoSharp.Core;
 
 namespace MeteoSharp.Measurements
 {
     public interface IMeasurement<TUnit>
         where TUnit : struct, Enum
     {
-        decimal Value { get; }
+        SmallDecimal Value { get; }
 
         TUnit Unit { get; }
 
-        decimal ValueIn(TUnit unit);
+        SmallDecimal ValueIn(TUnit unit);
     }
 
     public interface IMeasurement<TMeasurement, TUnit>

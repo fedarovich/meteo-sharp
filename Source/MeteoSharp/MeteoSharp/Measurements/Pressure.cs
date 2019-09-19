@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using MeteoSharp.Core;
 
 namespace MeteoSharp.Measurements
 {
@@ -51,7 +52,7 @@ namespace MeteoSharp.Measurements
         /// </summary>
         /// <param name="value">The Pressure value.</param>
         /// <param name="unit">The Pressure unit.</param>
-        public Pressure(decimal value, PressureUnit unit)
+        public Pressure(SmallDecimal value, PressureUnit unit)
         {
             Value = value;
             Unit = unit;
@@ -60,7 +61,7 @@ namespace MeteoSharp.Measurements
         /// <summary>
         /// Gets the value.
         /// </summary>
-        public decimal Value { get; }
+        public SmallDecimal Value { get; }
 
         /// <summary>
         /// Gets the unit.
@@ -70,7 +71,7 @@ namespace MeteoSharp.Measurements
         /// <summary>
         /// Gets the value in the specified <paramref name="unit"/>s.
         /// </summary>
-        public decimal ValueIn(PressureUnit unit) => Conversions.ConvertValue(this, unit);
+        public SmallDecimal ValueIn(PressureUnit unit) => Conversions.ConvertValue(this, unit);
 
         /// <summary>
         /// Gets the <see cref="Pressure"/> in the specified <paramref name="unit"/>s.
@@ -79,7 +80,7 @@ namespace MeteoSharp.Measurements
 
         public override string ToString() => $"{Value} {Abbreviations[(int)Unit]}";
 
-        public void Deconstruct(out decimal value, out PressureUnit unit)
+        public void Deconstruct(out SmallDecimal value, out PressureUnit unit)
         {
             value = Value;
             unit = Unit;

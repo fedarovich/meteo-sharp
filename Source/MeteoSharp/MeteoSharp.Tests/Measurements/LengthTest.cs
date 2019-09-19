@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using MeteoSharp.Core;
 using MeteoSharp.Measurements;
 using NUnit.Framework;
 
@@ -25,7 +26,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values] LengthUnit unit)
         {
             Length length = new Length(value, unit);
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(unit));
         }
 
@@ -35,7 +36,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values] LengthUnit unit)
         {
             Length length = (value, unit);
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(unit));
         }
 
@@ -45,7 +46,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values] LengthUnit unit)
         {
             Length length = (value, unit);
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(unit));
         }
 
@@ -58,7 +59,7 @@ namespace MeteoSharp.Tests.Measurements
             Length len1 = new Length(value1, unit);
             Length len2 = new Length(value2, unit);
             Length sum = len1 + len2;
-            Assert.That(sum.Value, Is.EqualTo(value1 + value2));
+            Assert.That(sum.Value, Is.EqualTo((SmallDecimal)(value1 + value2)));
             Assert.That(sum.Unit, Is.EqualTo(unit));
         }
 
@@ -92,7 +93,7 @@ namespace MeteoSharp.Tests.Measurements
             Length len1 = new Length(value1, unit);
             Length len2 = new Length(value2, unit);
             Length diff = len1 - len2;
-            Assert.That(diff.Value, Is.EqualTo(value1 - value2));
+            Assert.That(diff.Value, Is.EqualTo((SmallDecimal) (value1 - value2)));
             Assert.That(diff.Unit, Is.EqualTo(unit));
         }
 
@@ -123,7 +124,7 @@ namespace MeteoSharp.Tests.Measurements
             [ValueSource(nameof(UnitLengths))] Length unitLength)
         {
             Length length = value * unitLength;
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(unitLength.Unit));
         }
 
@@ -133,7 +134,7 @@ namespace MeteoSharp.Tests.Measurements
             [ValueSource(nameof(UnitLengths))] Length unitLength)
         {
             Length length = value * unitLength;
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(unitLength.Unit));
         }
 
@@ -143,7 +144,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values(-5.45, -3, 0, 5, 12.4)] decimal value)
         {
             Length length = unitLength * value;
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(unitLength.Unit));
         }
 
@@ -153,7 +154,7 @@ namespace MeteoSharp.Tests.Measurements
             [Values(-3, 0, 5)] int value)
         {
             Length length = unitLength * value;
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(unitLength.Unit));
         }
 
@@ -164,7 +165,7 @@ namespace MeteoSharp.Tests.Measurements
         {
             var originalUnit = length.Unit;
             length *= value;
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(originalUnit));
         }
 
@@ -175,7 +176,7 @@ namespace MeteoSharp.Tests.Measurements
         {
             var originalUnit = length.Unit;
             length *= value;
-            Assert.That(length.Value, Is.EqualTo(value));
+            Assert.That(length.Value, Is.EqualTo((SmallDecimal) value));
             Assert.That(length.Unit, Is.EqualTo(originalUnit));
         }
 
@@ -191,7 +192,7 @@ namespace MeteoSharp.Tests.Measurements
             var len23 = len2.In(unit3);
 
             var err = Math.Abs(len23.Value - len3.Value) / len3.Value;
-            Assert.That(err, Is.LessThan(1e-8m));
+            Assert.That(err.ToDecimal(), Is.LessThan(1e-7m));
             Assert.That(len23.Unit, Is.EqualTo(len3.Unit));
         }
 
@@ -206,7 +207,7 @@ namespace MeteoSharp.Tests.Measurements
             var val23 = len.In(unit2).ValueIn(unit3);
 
             var err = Math.Abs(val23 - val3) / val3;
-            Assert.That(err, Is.LessThan(1e-8m));
+            Assert.That(err.ToDecimal(), Is.LessThan(1e-7m));
         }
     }
 }
