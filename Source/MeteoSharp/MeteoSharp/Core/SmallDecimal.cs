@@ -4,6 +4,9 @@ using System.Runtime.CompilerServices;
 
 namespace MeteoSharp.Core
 {
+    /// <summary>
+    /// Represents a small decimal floating point number.
+    /// </summary>
     [Serializable]
     public readonly struct SmallDecimal : IFormattable, 
         IEquatable<SmallDecimal>, IComparable<SmallDecimal>, 
@@ -71,10 +74,54 @@ namespace MeteoSharp.Core
             get => _value >> CoefOffset;
         }
 
-        public SmallDecimal(int value) : this(value, 0)
+        /// <summary>
+        /// Represents the number zero (0)
+        /// </summary>
+        public static readonly SmallDecimal Zero = default;
+
+        /// <summary>
+        /// Represents the number one (1)
+        /// </summary>
+        public static readonly SmallDecimal One = new SmallDecimal(1);
+
+        /// <summary>
+        /// Represents the number minus one (-1)
+        /// </summary>
+        public static readonly SmallDecimal MinusOne = new SmallDecimal(-1);
+
+        /// <summary>
+        /// Represents the largest possible value of <see cref="SmallDecimal"/>. This value is <c>99999999</c>.
+        /// </summary>
+        public static readonly SmallDecimal MaxValue = new SmallDecimal(99_999_99);
+
+        /// <summary>
+        /// Represents the smallest possible value of <see cref="SmallDecimal"/>. This value is <c>-99999999</c>.
+        /// </summary>
+        public static readonly SmallDecimal MinValue = new SmallDecimal(-99_999_99);
+
+        /// <summary>
+        /// Represents the smallest positive value of <see cref="SmallDecimal"/>. This value is <c>0.000000000000001m</c>.
+        /// </summary>
+        public static readonly SmallDecimal Epsilon = new SmallDecimal(1, 15);
+
+        /// <summary>
+        /// Initializes a new instance of <see cref="SmallDecimal"/> to the value of the specified 32-bit signed integer.
+        /// </summary>
+        /// <param name="value">The integer value in range -99999999..99999999.</param>
+        /// <exception cref="OverflowException">The value is less than -99999999 or greater than 99999999.</exception>
+        public SmallDecimal(int value)
         {
+            if (value < -99_999_999 || value > 99_999_999)
+                throw new ArgumentOutOfRangeException(nameof(value));
+
+            _value = unchecked(value << CoefOffset);
         }
 
+        /// <summary>
+        /// Initializes a new instance of <see cref="SmallDecimal"/> to the value of the specified 32-bit signed integer.
+        /// </summary>
+        /// <param name="value">The integer value in range -99999999..99999999.</param>
+        /// <exception cref="OverflowException">The value is less than or equal to -99999999.5m or greater than or equal to 99999999.5m.</exception>
         public SmallDecimal(decimal value)
         {
             if (value >= 99_999_999.5m || value <= -99_999_999.5m)
@@ -98,7 +145,7 @@ namespace MeteoSharp.Core
             {
                 ref readonly var layout = ref Unsafe.As<decimal, DecimalLayout>(ref value);
                 byte exp = (byte)((layout.flags & 0x00FF0000) >> 16);
-                if (layout.hi == 0 && layout.mid == 0 && unchecked((uint)layout.lo) <= 99_999_999 && exp < 16)
+                if (layout.hi == 0 && layout.mid == 0 && unchecked((uint)layout.lo) <= 99_999_999u && exp < 16)
                 {
                     int coef = layout.flags >= 0 ? layout.lo : -layout.lo;
                     result = unchecked((coef << CoefOffset) | exp);
@@ -110,6 +157,11 @@ namespace MeteoSharp.Core
             }
         }
 
+        /// <summary>
+        /// Initializes a new instance of <see cref="SmallDecimal"/> to the value <c>coef * Math.Power(10, -exponent)</c>.
+        /// </summary>
+        /// <param name="coef">The integer value in range -99999999..99999999.</param>
+        /// <param name="exponent">A power of 10 ranging from 0 to 15.</param>
         public SmallDecimal(int coef, byte exponent)
         {
             if (coef < -99_999_999 || coef > 99_999_999)
@@ -121,21 +173,22 @@ namespace MeteoSharp.Core
         }
 
 
-        public decimal ToDecimal()
-        {
-            var coef = Coef;
-            bool neg = coef < 0;
-            return new decimal(neg ? -coef : coef, 0, 0, neg, Exp);
-        }
-
         #region Format
 
+        /// <inheritdoc />
         public override string ToString() => ToString(null);
 
+        /// <summary>
+        /// Formats the value of the current instance using the specified format.
+        /// </summary>
         public string ToString(IFormatProvider formatProvider) => ((IFormattable) this).ToString(null, formatProvider);
-        
-        string IFormattable.ToString(string format, IFormatProvider formatProvider)
+
+        /// <inheritdoc />
+        public string ToString(string format, IFormatProvider formatProvider)
         {
+            if (!string.IsNullOrEmpty(format))
+                return ToDecimal().ToString(format, formatProvider);
+
             var exp = Exp;
             var coef = Coef;
             var coefStr = coef.ToString(formatProvider);
@@ -168,6 +221,7 @@ namespace MeteoSharp.Core
 
         #region Equality
 
+        /// <inheritdoc />
         public bool Equals(SmallDecimal other)
         {
             if (other.Exp == Exp)
@@ -176,14 +230,17 @@ namespace MeteoSharp.Core
             return ToDecimal().Equals(other.ToDecimal());
         }
 
+        /// <inheritdoc />
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool IEquatable<decimal>.Equals(decimal other) => ToDecimal().Equals(other);
 
+        /// <inheritdoc />
         public override bool Equals(object obj)
         {
             return obj is SmallDecimal other && Equals(other);
         }
 
+        /// <inheritdoc />
         public override int GetHashCode()
         {
             return ToDecimal().GetHashCode();
@@ -203,6 +260,7 @@ namespace MeteoSharp.Core
 
         #region Comparison
 
+        /// <inheritdoc />
         public int CompareTo(SmallDecimal other)
         {
             if (Exp == other.Exp)
@@ -211,9 +269,11 @@ namespace MeteoSharp.Core
             return ToDecimal().CompareTo(other.ToDecimal());
         }
 
+        /// <inheritdoc />
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int IComparable<decimal>.CompareTo(decimal other) => ToDecimal().CompareTo(other);
 
+        /// <inheritdoc />
         public int CompareTo(object obj)
         {
             if (ReferenceEquals(null, obj)) return 1;
@@ -243,6 +303,18 @@ namespace MeteoSharp.Core
         #endregion
 
         #region Convertions
+
+        /// <summary>
+        /// Converts the current instance to <see cref="decimal"/>.
+        /// </summary>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public decimal ToDecimal()
+        {
+            var coef = Coef;
+            bool neg = coef < 0;
+            return new decimal(neg ? -coef : coef, 0, 0, neg, Exp);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator SmallDecimal(int value) => new SmallDecimal(value);

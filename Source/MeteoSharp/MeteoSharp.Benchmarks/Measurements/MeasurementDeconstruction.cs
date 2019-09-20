@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using BenchmarkDotNet.Attributes;
+using MeteoSharp.Core;
 using MeteoSharp.Measurements;
 
 namespace MeteoSharp.Benchmarks.Measurements
@@ -38,7 +39,7 @@ namespace MeteoSharp.Benchmarks.Measurements
         }
 
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
-        private void Use(in decimal value, PressureUnit unit)
+        private void Use(in SmallDecimal value, PressureUnit unit)
         {
         }
     }
