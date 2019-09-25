@@ -345,6 +345,12 @@ namespace MeteoSharp.Core
         public static SmallDecimal operator /(SmallDecimal x, SmallDecimal y) => x.ToDecimal() / y.ToDecimal();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static SmallDecimal operator +(SmallDecimal x) => x;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static SmallDecimal operator -(SmallDecimal x) => new SmallDecimal(-x.Coef, x.Exp);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static SmallDecimal Add(SmallDecimal x, SmallDecimal y) => x + y;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -355,6 +361,9 @@ namespace MeteoSharp.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static SmallDecimal Divide(SmallDecimal x, SmallDecimal y) => x / y;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static SmallDecimal Negate(SmallDecimal x) => -x;
 
         #endregion
 
